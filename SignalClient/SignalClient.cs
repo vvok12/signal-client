@@ -10,22 +10,16 @@ namespace VVOK12.SignalClient;
 public class SignalClient
 {
     private readonly string _apiUrl;
-    private readonly HttpClient _httpClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly AsyncPolicy<HttpResponseMessage> _retryPolicy;
 
     public SignalClient(IHttpClientFactory httpClientFactory, string apiUrl)
     {
-        if (httpClientFactory is null)
-        {
-            throw new ArgumentNullException(nameof(httpClientFactory));
-        }
-        if (string.IsNullOrWhiteSpace(apiUrl))
-        {
-            throw new ArgumentException("API URL cannot be null or empty.", nameof(apiUrl));
-        }
+        ArgumentNullException.ThrowIfNull(httpClientFactory, nameof(httpClientFactory));
+        ArgumentException.ThrowIfNullOrEmpty(apiUrl, nameof(apiUrl));
 
         _apiUrl = apiUrl;
-        _httpClient = httpClientFactory.CreateClient();
+        _httpClientFactory = httpClientFactory;
         _retryPolicy = HttpPolicyExtensions
             .HandleTransientHttpError()
             .RetryAsync(3, onRetry: (outcome, retryCount, context) =>
@@ -36,15 +30,13 @@ public class SignalClient
 
     public async Task<HttpResponseMessage> SendAsync(string message)
     {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            throw new ArgumentException("Message content cannot be null or empty.", nameof(message));
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(message, nameof(message));
 
+        using var httpClient = _httpClientFactory.CreateClient();    
         using var content = new StringContent(message, Encoding.UTF8, "application/x-www-form-urlencoded");
         return await _retryPolicy.ExecuteAsync(async () =>
         {
-            return await _httpClient.PostAsync(_apiUrl, content);
+            return await httpClient.PostAsync(_apiUrl, content);
         });
     }
 }
